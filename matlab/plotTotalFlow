@@ -1,0 +1,2 @@
+TotalFlow = importdata('TotalFlow.txt');
+plot(TotalFlow);

@@ -1,0 +1,7 @@
+n = mod(N,i);
+m = floor(i,N);
+
+left = m*((N+M-1))+n
+right = m*((N+M-1))+n
+above = m*(N*(M-1))+N+(m+mod(n+1,2))/2;
+below = m*(N*(M-1))-(N-m+mod(n+1,2))/2;
