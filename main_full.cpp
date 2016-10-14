@@ -17,53 +17,85 @@ using namespace arma;
 
 class pipe;
 class node;
-double Pi = 4.0*atan(1.0);
-int M = 40;
-int N = 40;
+
+int M = 20;
+int N = 20;
 int yLen = M;
+int nNodes = N*M;
+int nPipes = N*M*3/2;
+int k = 0;
+
+double Pi = 4.0*atan(1.0);
 double stens = 3.0;         // surface tension: units = dyn/mm == 10 mN/m
 double linkRadMin = 0.1;
 double linkRadMax = 0.4;
-int nNodes = N*M;
-int nPipes = N*M*3/2;
-double dt = 1;
-int k = 0;
+double dt = 1.0;
 double saturationNW = 0.5;
 double totalT = 0;
-mat bubbleStartOut = zeros(nPipes*104,15);
-mat bubbleStopOut = zeros(nPipes*104,15);
-vec TotFlow = zeros(1000);
-vec Flow = zeros(1000*10);
-vec avgFlow =zeros(10);
-double pressure = 1 * ((sin(Pi / 6) + 1) / cos(Pi / 6)*yLen * 2 * stens / (linkRadMin + linkRadMax)*0.5);
-double poreVolume = N*M*3/2*0.25*0.25*3.1415;
+double pressure = 0.7 * yLen * 2 * stens / ((linkRadMin + linkRadMax)*0.5);//*((sin(Pi / 6.0) + 1) / cos(Pi / 6.0);
+double poreVolume = N*M*3.0/2.0*0.25*0.25*3.1415;
 double saturation;
 
-node* nodes; 
-Pipe* pipes;
+int iterations = 10000;
+int numPoints = 21;
+
+mat bubbleStartOut = zeros(nPipes*100,15);
+mat bubbleStopOut = zeros(nPipes*100,15);
+mat Ainv = zeros(nNodes,nNodes);
+mat A = zeros(nNodes,nNodes);
+vec B = zeros(nNodes);
+vec TotFlow = zeros(iterations);
+vec Flow = zeros(iterations*numPoints);
+vec avgFlow =zeros(numPoints);
+vec avgFrac = zeros(numPoints);
+vec FracFlow = zeros(iterations);
+vec TotFracFlow = zeros(iterations*numPoints);
+node* nodes = new  node[nNodes]; 
+Pipe* pipes = new Pipe[nPipes];
+
+void initializeNodesAndPipes();
+void getFlow();
+void updateBubbles();
+void setOutput(int i, int K);
+void solvePressure();
+void debug(int i);
+void meashureFlow(int i);
+double calcDeltaT();
+double totSaturation();
+
 
 void initializeNodesAndPipes(){
-	nodes = new node[nNodes];
-	pipes = new Pipe[nPipes];
+	//nodes = new node[nNodes];
+	//pipes = new Pipe[nPipes];
 	for (int i = 0; i<nPipes; i++){
 		pipes[i].index = i;
+		pipes[i].flow = 1;
+		pipes[i].nBubbles = 0;
+		pipes[i].swapped = false;
 	}
 	for (int i = 0; i<nNodes; i++){
 		nodes[i].index = i;
 		nodes[i].setConnections(pipes,nodes,N,M);
+		nodes[i].pressure = 0;
 	}
-	for(int i = 0; i<nPipes*saturation; i++){
+	cout<<"nubpipes "<<(int)round(nPipes*saturation)<<endl;
+	for(int i = 0; i<(int)(nPipes*saturation); i++){
 		pipes[i].bubbleStop[0] = 1.0;
 		pipes[i].bubbleStart[0] = 0.0;
 		pipes[i].nBubbles = 1;
 	}
-	
 	for(int i = 0; i<nPipes; i++){
 		pipes[i].calcPcandMobility();
 		pipes[i].getFlow(pressure);
 	}
 }
 
+void getPoreVolume(){
+	poreVolume = 0;
+	for(int i = 0; i<nPipes; i++){
+		poreVolume += pipes[i].area;
+	}
+}
 void getFlow(){
 	for (int i = 0; i<nPipes; i++){
 		pipes[i].getFlow(pressure);
@@ -76,8 +108,7 @@ double calcDeltaT() {
     int velMaxPos = -1;
     for (int i = 0; i < nPipes; i++) {
         double vel = pipes[i].flow / pipes[i].area; // volume-normalized velocity
-	cout<<"vel: "<<vel<<endl;
-        if (saturationNW == 0.0 || saturationNW == 1.0) {
+        if (saturation == 0.0 || saturation == 1.0) {
             if (velMax < fabs(vel)) {
                 velMax = fabs(vel);
                 velMaxPos = i;
@@ -101,6 +132,7 @@ double totSaturation(){
 	for (int i = 0; i < nPipes; i++){
 		totSat += pipes[i].calcLinkSaturation()*pipes[i].area;
 	}
+	return totSat;
 }
 
 void updateBubbles(){
@@ -124,7 +156,7 @@ void updateBubbles(){
 			pipes[i].distributeBubbles();
 		}
 		curSat = totSaturation();
-		cout<<"satDiff "<<curSat-prevSat<<endl;
+		//cout<<"satDiff "<<curSat-prevSat<<endl;
 		for (int i = 0; i<nNodes; i++){
 			nodes[i].bubbleAdjust(pipes);
 		}
@@ -152,6 +184,48 @@ void setOutput(int i, int K){
 	}
 }
 
+void ldlt(){
+	//A = zeros(nNodes,nNodes);
+	A(0,0) = 1;
+	for(int i = 1; i<nNodes; i++){
+		A(i,i) 				= - nodes[i].rightPipe->mobility - nodes[i].leftPipe->mobility - nodes[i].horizontalPipe->mobility;
+		A(i,nodes[i].horizontalNode->index) 	= nodes[i].horizontalPipe->mobility;
+		A(i,nodes[i].leftNode->index) 		=  nodes[i].leftPipe->mobility;
+		A(i,nodes[i].rightNode->index) 		=  nodes[i].rightPipe->mobility;
+	}
+	Ainv = inv(A);
+	//cout<<A<<endl<<Ainv<<endl;
+}
+
+void ldlt_solve(){
+	int n,m;
+	double b[nNodes];
+	B(0) = 0;
+	for(int i = 1; i<nNodes; i++){
+		B(i) = 0;
+		for(int j = 0; j < 3; j++){
+			if(j == 0){
+				m = nodes[i].leftPipe->index;
+			}else if (j == 1){
+				m = nodes[i].rightPipe->index;
+			}
+			else{
+				m = nodes[i].horizontalPipe->index;
+			}
+			
+			B(i) -= pipes[m].mobility*(-pipes[m].Pc+pressure*pipes[m].boundary)*(nodes[i].upper? 1: -1);//pluss/minus?
+			//cout<<"mob: "<<pipes[m].mobility<<endl;
+		}
+	}
+
+	vec P = Ainv*B;
+	//cout<<"P: "<<P<<endl<<endl;
+	//cout<<"B"<<endl<<B<<endl<<endl;
+	//cout<<solve(A,B)<<endl;
+	for(int i = 0; i<nNodes; i++){
+		nodes[i].pressure = P(i);
+	}
+}
 
 void solvePressure(){
 	double p[nNodes];
@@ -210,52 +284,62 @@ void solvePressure(){
 void debug(int i){
 	cout<<endl<<" Iteration "<<i<<endl;
 	int TotBubbles = 0;
-	for (int i = 0; i<nPipes; i++){
-		TotBubbles += pipes[i].nBubbles;
-	}
-	cout<<"Total Bubbles: "<<TotBubbles<<endl;
-	
-	for(int j = 0; j<pipes[20].nBubbles;j++){
-		cout<<" bubleStart "<<pipes[20].bubbleStart[j];
-		cout<<" bubbleStop " <<pipes[20].bubbleStop[j];
-		cout<<endl;
-	}
+	//cout<<"pressure 20: "<<nodes[20].pressure;
+	//cout<<"   flow 30: " <<pipes[30].flow<<endl;
 	
 }
 
 void meashureFlow(int i){
-	double totalFlow = 0;
-	double totalFlowNW = 0;
+	double totalFlow = 0.0;
+	double totalFlowNW = 0.0;
 	for (int j = N; j<3*N/2; j++){
 		totalFlow += pipes[j].lenTL*pipes[j].area*(pipes[j].swapped?-1:1);
-		totalFlowNW += pipes[j].lenNW*pipes[j].area;
+		totalFlowNW += pipes[j].lenNW*pipes[j].area*(pipes[j].swapped?-1:1);
 	}
-	TotFlow(i) = totalFlow;
+	TotFlow(i) = totalFlow/dt;
+	FracFlow(i) = totalFlowNW/totalFlow;
+	if(totalFlowNW>totalFlow+10e-12){
+		/*cout<<"KRISEE! "<<"totFlow "<<totalFlow<<"NWflow "<<totalFlowNW<<endl;
+		for(int j = N; j<3*N/2; j++){
+			if(pipes[j].lenTL*pipes[j].area*(pipes[j].swapped?-1:1) < pipes[j].lenNW*pipes[j].area*(pipes[j].swapped?-1:1)-10e-12){
+			cout<<pipes[j].lenTL*pipes[j].area*(pipes[j].swapped?-1:1)<<"  "<<pipes[j].lenNW*pipes[j].area*(pipes[j].swapped?-1:1)<<endl;
+			}
+		}*/
+	}
 }
+
+
 
 int main(){
 	int iter = 0;
-	for(saturation = 0.5; saturation < 1; saturation += 0.1){
+	for(saturation = 0.0; saturation <= 1.01; saturation += 1/((double)numPoints-1)){
+	cout<<"iteration: " << iter<<endl;
+	cout<<"saturation: "<<saturation<<endl;
 	initializeNodesAndPipes();	
-	
+	getPoreVolume();
+	cout<<"real Saturation: "<<totSaturation()/poreVolume<<endl;
+	//debug(i);
 	cout<<endl;
 	double TotQ = 0;
 	int i = 0;
-	while (i < 1000){
+	ldlt();
+	while (i < iterations){
 		for(int j = 0; j<nPipes; j++){
 			pipes[j].calcPcandMobility();
 		}
-		solvePressure();
-		getFlow();
+		
+		ldlt_solve();
+		//solvePressure();
 		//debug(i);
+		getFlow();
 		updateBubbles();
 			
 		meashureFlow(i);
-//		setOutput(i,10);	
+		//setOutput(i,10);	
 		TotQ += TotFlow(i);
 		i++;
-		cout<<"percent done: "<<(TotQ/2/poreVolume)*100.0<<endl;
-		cout<<"totalSaturation: "<<totSaturation()/poreVolume<<endl;
+		//cout<<"percent done: "<<(TotQ/2.0/poreVolume)*100.0<<endl;
+		//cout<<"totalSaturation: "<<totSaturation()/poreVolume<<endl;
 	}
 	
 	/*mat Output = zeros(5,N*M/2*3);
@@ -265,28 +349,33 @@ int main(){
 		Output(2,i) = pipes[i].y1;
 		Output(3,i) = pipes[i].x2;
 		Output(4,i) = pipes[i].y2;
-	}*/
-	bubbleStartOut.save("bStart.txt",raw_ascii);
-	bubbleStopOut.save("bStop.txt",raw_ascii);
-	//Output.save("Output.txt",raw_ascii);
-	TotFlow.save("TotalFlow.txt",raw_ascii);
-	for(int i = 500; i<1000; i++){
-		avgFlow(iter) += TotFlow(i);
 	}
-	avgFlow(iter) = avgFlow(iter)/1000.0;
+	bubbleStartOut.save("bStart.txt",raw_ascii);
+	bubbleStopOut.save("bStop.txt",raw_ascii);*/
+	//Output.save("Output.txt",raw_ascii);
+	//TotFlow.save("TotalFlow.txt",raw_ascii);
+	for(int i = iterations/2; i<iterations; i++){
+		avgFlow(iter) += TotFlow(i);
+		avgFrac(iter) += FracFlow(i);
+	}
+	avgFlow(iter) = avgFlow(iter)/1000.0/((double)N/2);
+	avgFrac(iter) = avgFrac(iter)/1000.0;
+	cout<<"avgFlow: " <<avgFlow<<" avgFrac: "<<avgFrac<<endl;
 	/*for( int i = 0; i<nPipes; i++){
 		delete[] pipes[i].bubbleStart;
 		delete[] pipes[i].bubbleStop;
 	}*/
-	Flow(span((iter)*1000,(iter+1)*1000-1)) = TotFlow;
+	Flow(span((iter)*iterations,(iter+1)*iterations-1)) = TotFlow;
+	TotFracFlow(span((iter)*iterations,(iter+1)*iterations-1)) = FracFlow;
 	iter++;
-	cout<<iter<<endl;
-	delete[] nodes;
-	delete[] pipes;
+	//delete[] nodes;
+	//delete[] pipes;
 	}
 	
 	avgFlow.save("AvgFlow.txt",raw_ascii);
 	Flow.save("Flow.txt",raw_ascii);
+	avgFrac.save("AvgFrac.txt",raw_ascii);
+	TotFracFlow.save("TotFrac.txt",raw_ascii);
 	//cout<<"herda? "<<endl;
 return 0;
 }

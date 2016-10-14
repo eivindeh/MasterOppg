@@ -22,6 +22,7 @@ Pipe::Pipe(){
 		bubbleStop[i] = 0;
 	}
 	boundary = 0;
+	flow = 1;
 	radius = ((double)rand()/RAND_MAX*3.0+1.0)*0.1;
 	area = PI*pow(radius,2);
 	//mobility = pow(radius,4);
@@ -49,8 +50,8 @@ void Pipe::moveBubble(double dt){
 		bubbleStop[bubble] += lenTL; 
 	}
 	//cout<<"secondMove "<<nodeP->index<<endl;
-	double start 	= 1.0 - lenTL;
-        double end 	= 1.0;
+	double start 	= 1.0;
+        double end 	= 1.0 +lenTL;
         
         for (int i = 0; i < nBubbles; i++) {
             lenNW += clamp(bubbleStop[i], start, end) - clamp(bubbleStart[i], start, end);
@@ -58,6 +59,10 @@ void Pipe::moveBubble(double dt){
         //cout<<" Pipe "<<index<<endl;
         //cout<< " NodeP "<<nodeP->nodeFluxTL<<endl; 
         //cout<<" pIndex "<<" nIndex "<<nodeP->index<<endl;
+        if(lenTL+10e-12<lenNW &&nBubbles == 1){
+        cout<<"Alert   "<<"nbubbles "<<nBubbles<<endl;
+        cout<<"lenTL: "<<lenTL<<"lenNW: "<<lenNW<<endl;
+        }
         nodeP->nodeFluxTL += lenTL*area;
         nodeP->nodeFluxNW += lenNW*area;	
 }
@@ -70,19 +75,23 @@ void Pipe::distributeBubbles(){
      			if(dx2 < radius){
      				bubbleStart[0] -= lenTL;
      				bubbleStop[0]  -= (1.0 - nodeN->nodeFrac)*lenTL;
+     				//cout<<"a";
      			}
      			else{
      				bubbleStart[0] -= nodeN->nodeFrac*lenTL;
+     				//cout<<"b";
      			}
      		}
      		else{
      			if(dx1 < radius){
      				bubbleStart[0] -= nodeN->nodeFrac*lenTL;
+     				//cout<<"c";
      			}
      			else{
      				for(int i = maxBubbles -1 ; i > 0; i--){
      					bubbleStart[i] = bubbleStart[i-1];
      					bubbleStop[i] = bubbleStop[i-1];	
+     				//cout<<"d";
      				}
      				nBubbles++;
      				bubbleStart[0] = 0.0;
@@ -94,6 +103,7 @@ void Pipe::distributeBubbles(){
 		bubbleStart[0] = 0.0;
 		bubbleStop[0]  = nodeN->nodeFrac*lenTL;
 		nBubbles++;
+		//cout<<"e";
 	}
 	for (int i = 0; i<nBubbles; i++){
 		bubbleStart[i] = clamp(bubbleStart[i],0,1);
@@ -123,7 +133,7 @@ void Pipe::Swap(){
 		bubbleStart[i] =1.0 - temp;}
 	}
 	
-
+	//cout<< "swapped a pipe ";
 	swapped = !swapped;
 }
 
@@ -135,6 +145,7 @@ void Pipe::killBubbles(){
 				bubbleStop[j] = bubbleStop[j+1];
 			}
 			nBubbles--;
+			//<<" killed a  bubble ";
 		}
 	}
 }

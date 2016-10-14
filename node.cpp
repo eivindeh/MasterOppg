@@ -65,12 +65,8 @@ void node::setConnections(Pipe pipes[],node nodes[],int N,int M){
 
 void node::updateNodeFrac(){
 	nodeFrac = nodeFluxNW/(nodeFluxTL+10e-50);
-	if(index == 8){
-		//cout<<" nodefluxtl " <<nodeFluxTL<<endl;
-		//cout<<" nodeFractl " <<nodeFrac<<endl;
-	}
-	nodeFluxNW = 0;
-	nodeFluxTL = 0;
+	nodeFluxNW = 0.0;
+	nodeFluxTL = 0.0;
 }
 
 void node::bubbleAdjust(Pipe* pipes) {
@@ -95,7 +91,7 @@ void node::bubbleAdjust(Pipe* pipes) {
         		continue;
         	}
         	int bubble = (pipes[link].nodeN->index == index ? 0 : pipes[link].nBubbles-1);
-        	dx1s[i] = (pipes[link].nodeN->index == index ? 1.0 - pipes[link].bubbleStop[bubble] : pipes[link].bubbleStart[bubble]);
+        	dx1s[i] = (pipes[link].nodeN->index == index ? pipes[link].bubbleStart[bubble] : 1.0 - pipes[link].bubbleStop[bubble]); //switched
         	dx2s[i] = pipes[link].bubbleStop[bubble] - pipes[link].bubbleStart[bubble];
         	
         	if(dx1s[i] < TOL){
@@ -120,15 +116,15 @@ void node::bubbleAdjust(Pipe* pipes) {
         double volNW = dx2s[(typeFirst[0] ? linksId[0] : linksId[1])] * pipes[linkNW].area;
         double volW  = dx1s[(typeFirst[0] ? linksId[1] : linksId[0])] * pipes[linkW].area;
         
-        if (pipes[link].nodeP->index == index)
+        if (pipes[linkNW].nodeP->index == index)
         	pipes[linkNW].bubbleStart[pipes[linkNW].nBubbles-1] += min(volNW,volW)/pipes[linkNW].area;
         else
         	pipes[linkNW].bubbleStop[0] -= min(volNW,volW) / pipes[linkNW].area;
         
-        if(pipes[link].nodeN->index == index)
-        	pipes[linkW].bubbleStart[pipes[linkW].nBubbles-1] += min(volNW,volW)/pipes[linkW].area;
+        if(pipes[linkW].nodeP->index == index) //switched to P from N.
+        	pipes[linkW].bubbleStop[pipes[linkW].nBubbles-1] += min(volNW,volW)/pipes[linkW].area;
         else
-        	pipes[linkW].bubbleStop[0] -= min(volNW,volW) / pipes[linkW].area;
+        	pipes[linkW].bubbleStart[0] -= min(volNW,volW) / pipes[linkW].area;
         
         }
         //delete[] links;
