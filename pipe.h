@@ -5,7 +5,11 @@
 using namespace std;
 using namespace arma;
 
+
 class node;
+
+enum RadiusFunc {OLD, UNREAL, REAL};
+enum TubeType {CIRC, TRIAG1, TRIAG2};
 
 class Pipe{
 	public:
@@ -22,12 +26,14 @@ class Pipe{
 	double length = 1;
 	double lenTL;
 	double lenNW;
+	double G;
 	double saturation;
 	bool boundary;
 	double flow = 1; //OBS!!
 	double* bubbleStart;
 	double* bubbleStop;
 	double mobility;
+	double theta = 0;
 	node* nodeP;
 	node* nodeN;
 	void setCoordinates(double x, double y);
@@ -38,6 +44,9 @@ class Pipe{
 	void getFlow(double pressure);
 	double calcLinkSaturation();
 	void calcPcandMobility();
+	//RadiusFunc radiusFunc;
+	//TubeType tubeType;
+
 	Pipe();
 	~Pipe();
 };
