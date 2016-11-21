@@ -97,7 +97,7 @@ void node::bubbleAdjust(Pipe* pipes) {
         	dx2s[i] = pipes[link].bubbleStop[bubble] - pipes[link].bubbleStart[bubble];
         	
         	if(dx1s[i] < TOL){
-        		if(dx2s[i] < pipes[link].radius && dx2s[i]> TOL){
+        		if(dx2s[i] < pipes[link].radius && dx2s[i]> 12e-12){
         			typeFirst[ctr] = 1;
         			links[ctr] = link;
         			linksId[ctr++] = i;
@@ -105,7 +105,7 @@ void node::bubbleAdjust(Pipe* pipes) {
         		}
         		}
         	else{
-        		if (dx1s[i] <pipes[link].radius) {
+        		if (dx1s[i] <pipes[link].radius && dx1s[i] > 10e-12) {
         			links[ctr] = link;
         			linksId[ctr++] = i;
         			isSmallW = true;
@@ -152,12 +152,23 @@ void node::bubbleAdjust(Pipe* pipes) {
             }
         } else if (isSmallNW && ctr == 1) {
            // double lenTL = pipes[links[0]].flow * deltaT / pipes[links[0]].area;
-            int bubble = (pipes[links[0]].nodeP->index == index ? pipes[links[0]].nBubbles - 1 : 0);
-            if (nodeFrac < TOL) {
+            int bubble = 0; // = (pipes[links[0]].nodeP->index == index ? pipes[links[0]].nBubbles - 1 : 0);
+            if (nodeFrac < TOL && pipes[links[0]].nodeN->index == index) {
                 pipes[links[0]].bubbleStart[bubble] += pipes[links[0]].lenTL;
                 pipes[links[0]].bubbleStop[bubble] += pipes[links[0]].lenTL;
             }
         } else if (ctr == 1 && isSmallW) {
+        	int bubble = 0;// = (pipes[links[0]].nodeP->index == index ? pipes[links[0]].nBubbles - 1 : 0);
+        	if (nodeFrac > 1 - TOL &&  pipes[links[0]].nodeN->index == index) {
+                	pipes[links[0]].bubbleStart[bubble] += pipes[links[0]].lenTL;
+                	for(int i = 15 -1 ; i > 0; i--){
+     					pipes[links[0]].bubbleStart[i] = pipes[links[0]].bubbleStart[i-1];
+     					pipes[links[0]].bubbleStop[i] = pipes[links[0]].bubbleStop[i-1];	
+     				}
+     				pipes[links[0]].nBubbles++;
+     				pipes[links[0]].bubbleStart[0] = 0.0;
+     				pipes[links[0]].bubbleStop[0]  = pipes[links[0]].lenTL;
+            	}
             // Add option to move small W bubbles also
             // but maybe not with full linkQ?, due to less surface area?
             /*

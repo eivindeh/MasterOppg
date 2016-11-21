@@ -4,10 +4,12 @@
 #define SIGN (x < 0) ? -1 : (x > 0)
 #define clamp(x,a,b) (x < a ? a : x > b ? b : x)
 #define unlerp(t,a,b)  ( ((t) - (a)) / (double) ((b) - (a)) ) // inverse linear interpolation
-#define r(x) (radius/(1 -0.99*cos(2*PI*(x))))  
+#define r(x) (2*radius/(1 -0.99*cos(2*PI*(x))))  
 #define alpha(x) atan((-2*PI*0.99*radius*sin(2*PI*(x))/(pow((1-0.99*cos(2*PI*(x))),2))))
 #define r2(x) (radius+cos(2*PI*x))  
+#define r3(x) (radius+(0.5-sqrt(0.25-pow((x-0.5),2))))
 #define alpha2(x) (atan(-2*PI*sin(2*PI*x)))
+#define alpha3(x) (atan(-(1-2*x)/sqrt((1-x)*x)/2))
 #define TOL 1.0e-12
 #define maxBubbles 15
 using namespace std;
@@ -15,12 +17,13 @@ using namespace arma;
 
 
 double PI = 4.0*atan(1.0);
-double sTens = 3.0;         // surface tension: units = dyn/mm == 10 mN/m
+double sTens = 7.0; //3.0;         // surface tension: units = dyn/mm == 10 mN/m
 double muNON = 0.01;        // viscosity: units = Po == 10 Pa*s
 double muWET = 0.01;
-bool seeded = false;
+bool seeded = true;
+vec cap = {18.3785,18.1614, 17.5342,16.5598,15.3204,13.9183,12.4758,11.1307,10.0274,9.2997,9.0450};
 
-RadiusFunc radiusFunc = REAL;
+RadiusFunc radiusFunc = UNREAL;
 TubeType tubeType = TRIAG1;
 
 
@@ -196,12 +199,20 @@ void Pipe::calcPcandMobility(){
             	
             	if(radiusFunc == OLD){
             	Pc += cos(theta)*((1.0 - cos(2.0*PI*str)) - (1.0 - cos(2.0*PI*end)))*muEff/radius;}
-            	else if(radiusFunc = UNREAL){
+            	else if(radiusFunc == UNREAL){
             		Pc += muEff*(1/r(str)*cos(theta-alpha(str))-1/r(end)*cos(-theta-alpha(end)));
             	}
-            	else{
-         		Pc += muEff*(1/r2(str)*cos(theta-alpha2(str))-1/r2(end)*cos(-theta-alpha2(end)));
+            	else if(radiusFunc == REAL){	
+            		
+         		//Pc += muEff*(1/r2(str)*cos(theta-alpha2(str))-1/r2(end)*cos(-theta-alpha2(end)));
+         		Pc += muEff*(1/r3(str)*cos(theta-alpha3(str))*((str==1 || str == 0) ? 0 : 1)-1/r3(end)*cos(-theta-alpha3(end))*((end==1 || end == 0) ? 0 : 1));
+         		//Pc += (str == 0 ? 0 : str == 1? 0: cap(i)*(1+(0.2*-radius)/0.2*(1-0.57)))+(end = 0 ? 0 : end = 1? 0: cap(i)*(1+(0.2*-radius)/0.2*(1-0.57)));
+    			/*if(true){
+    			cout<<"Pc 1: " <<muEff*(1/r2(str)*cos(theta-alpha2(str))-1/r2(end)*cos(-theta-alpha2(end)))<<"Pc 2: "<< muEff*(1/r3(str)*cos(theta-alpha3(str))*((str==1 || str == 0) ? 0 : 1)-1/r3(end)*cos(-theta-alpha3(end))*((end==1 || end == 0) ? 0 : 1))<<"Pc 3: "<<(str == 0 ? 0 : str == 1? 0: cap(i)*(1+(0.2*-radius)/0.2*(1-0.57)))+(end = 0 ? 0 : end = 1? 0: cap(i)*(1+(0.2*-radius)/0.2*(1-0.57)))<<endl;
+    			}*/
             	}
+            	//if(Pc != 0)
+            	//cout<<"Pc: "<<Pc;
 	}
 	Pc *= (swapped?-1:1);
 	saturation = calcLinkSaturation();

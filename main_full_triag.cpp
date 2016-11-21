@@ -22,8 +22,8 @@ using namespace arma;
 class pipe;
 class node;
 
-int M = 30;
-int N = 30;
+int M = 20;
+int N = 20;
 int yLen = M;
 int nNodes = N*M;
 int nPipes = N*M*3/2;
@@ -41,7 +41,7 @@ double dt;
 double poreVolume;
 double saturation;
 
-int iterations = 50000;
+int iterations = 10000;
 int numPoints = 10;
 
 
@@ -57,6 +57,7 @@ mat avgFlow =zeros(numPoints,11);
 mat avgFrac = zeros(numPoints,11);
 vec FracFlow = zeros(iterations);
 vec TotFracFlow = zeros(10000*numPoints);
+vec Ca = zeros(iterations);
 node* nodes = new  node[nNodes]; 
 Pipe* pipes = new Pipe[nPipes];
 
@@ -297,6 +298,9 @@ void meashureFlow(int i){
 		totalFlow += pipes[j].lenTL*pipes[j].area*(pipes[j].swapped?-1:1);
 		//totalFlowNW += pipes[j].lenNW*pipes[j].area*(pipes[j].swapped?-1:1);
 	}
+	for (int j = 0; j < nPipes; j++){
+		Ca(i) += pipes[j].lenTL/dt*0.01/3.0;
+	}
 	TotFlow(i) = totalFlow/dt;
 	//FracFlow(i) = totalFlowNW/totalFlow;
 	for (int j = 0; j<nPipes; j++){
@@ -396,6 +400,7 @@ int main(){
 	avgFrac(iter1,iter2) = avgFrac(iter1,iter2)/((double)iterations/2);
 	cout<<"avgFlow: "<< endl <<avgFlow<<" avgFrac: "<< endl <<avgFrac<<endl;
 	cout<<"tPressure "<<dPressure<<" tFlow "<<dFlow<<" tUpdate "<<dUpdate<<endl;
+	//cout<<"Ca: "<<endl<<Ca<<endl;
 	/*for( int i = 0; i<nPipes; i++){
 		delete[] pipes[i].bubbleStart;
 		delete[] pipes[i].bubbleStop;
@@ -412,10 +417,11 @@ int main(){
 	}
 	iter2++;
 	}
-	avgFlow.save("AvgFlow8.txt",raw_ascii);
+	avgFlow.save("AvgFlowCirc.txt",raw_ascii);
 	Flow.save("Flow.txt",raw_ascii);
-	avgFrac.save("AvgFrac8.txt",raw_ascii);
+	avgFrac.save("AvgFracCirc.txt",raw_ascii);
 	TotFracFlow.save("TotFrac.txt",raw_ascii);
+	Ca.save("CaCirc.txt",raw_ascii);
 	//cout<<"herda? "<<endl;
 return 0;
 }
