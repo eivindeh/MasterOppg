@@ -46,8 +46,8 @@ int numPoints = 10;
 
 
 
-mat bubbleStartOut = zeros(nPipes*1000,15);
-mat bubbleStopOut = zeros(nPipes*1000,15);
+mat bubbleStartOut = zeros(nPipes*100,5);
+mat bubbleStopOut = zeros(nPipes*100,5);
 mat Ainv = zeros(nNodes,nNodes);
 mat A = zeros(nNodes,nNodes);
 vec B = zeros(nNodes);
@@ -91,7 +91,10 @@ void initializeNodesAndPipes(){
 		pipes[i].nBubbles = 1;
 	}
 	for(int i = 0; i<nPipes; i++){
+		pipes[i].getCapBoundaries();
+		pipes[i].getPcMax();
 		pipes[i].calcPcandMobility();
+		//cout<<pipes[i].Pc<<endl;
 		pipes[i].getFlow(pressure);
 	}
 }
@@ -120,6 +123,7 @@ double calcDeltaT() {
                 velMaxPos = i;
             }
         } else {
+        	//cout<<"vel: "<<vel<<endl;
             if (velMax < fabs(vel) && pipes[i].nBubbles > 0) {
                 velMax = fabs(vel);
                 velMaxPos = i;
@@ -149,9 +153,6 @@ void updateBubbles(){
 		for (int i = 0; i<nPipes; i++){
 			pipes[i].moveBubble(dt);
 		}
-		for (int i = 0; i<nPipes; i++){
-			pipes[i].killBubbles();
-		}
 		for (int i = 0; i<nNodes; i++){
 			nodes[i].updateNodeFrac();
 		}
@@ -161,6 +162,9 @@ void updateBubbles(){
 		}
 		for (int i = 0; i<nNodes; i++){
 			nodes[i].bubbleAdjust(pipes);
+		}
+		for (int i = 0; i<nPipes; i++){
+			pipes[i].killBubbles();
 		}
 }
 
@@ -175,7 +179,7 @@ void setOutput(int i, int K){
 				swappedd = true;
 				pipes[i].Swap();
 			}
-			for(int j = 0; j<15; j++){
+			for(int j = 0; j<5; j++){
 				bubbleStartOut(i+N*M/2*3*(k-1),j) = pipes[i].bubbleStart[j];
 				bubbleStopOut(i+N*M/2*3*(k-1),j) = pipes[i].bubbleStop[j];
 			}
@@ -332,8 +336,10 @@ int main(){
 	avgR = avgR/nPipes;
 	pressure = 0.7 * yLen * 2 * stens / 0.25;
 	int iter2 = 0;
+	//for(Theta = 0.0; Theta <= 0.0; Theta += Pi/2.0/10.0){
 	for(Theta = 0.0; Theta <Pi/2.0+0.01; Theta += Pi/2.0/10.0){
 	int iter1 = 0;
+	//for(saturation = 0.9; saturation <= 0.9; saturation += 1/((double)numPoints-1)){
 	for(saturation = 0.0; saturation <= 1.01; saturation += 1/((double)numPoints-1)){
 	cout<<"iteration1: " << iter1<<endl;
 	cout<<"saturation: "<<saturation<<endl;
@@ -357,6 +363,9 @@ int main(){
 	double avgPc = 0;
 
 	while (i < iterations){
+		for(int j = 0; j<nNodes; j++){
+			nodes[j].findConnectingBubbles(pipes);
+		}
 		for(int j = 0; j<nPipes; j++){
 			pipes[j].calcPcandMobility();
 		}
@@ -370,7 +379,7 @@ int main(){
 		updateBubbles();
 		dUpdate += (clock()-update)/(double) CLOCKS_PER_SEC;
 		meashureFlow(i);
-		//setOutput(i,10);	
+		//setOutput(i,1000);	
 		TotQ += TotFlow(i);
 		i++;
 	}
@@ -380,7 +389,7 @@ int main(){
 	}
 	cout<<"avgPc: "<<avgPc/nPipes<<endl;
 	
-	/*mat Output = zeros(5,N*M/2*3);
+	mat Output = zeros(5,N*M/2*3);
 	for (int i = 0; i<N*M/2*3; i++){
 		Output(0,i) = pipes[i].flow;
 		Output(1,i) = pipes[i].x1;
@@ -388,10 +397,10 @@ int main(){
 		Output(3,i) = pipes[i].x2;
 		Output(4,i) = pipes[i].y2;
 	}
-	bubbleStartOut.save("bStart.txt",raw_ascii);
-	bubbleStopOut.save("bStop.txt",raw_ascii);
+	//bubbleStartOut.save("bStart.txt",raw_ascii);
+	//bubbleStopOut.save("bStop.txt",raw_ascii);
 	//Output.save("Output.txt",raw_ascii);
-	//TotFlow.save("TotalFlow.txt",raw_ascii);*/
+	//TotFlow.save("TotalFlow.txt",raw_ascii);
 	for(int i = iterations/2; i<iterations; i++){
 		avgFlow(iter1,iter2) += TotFlow(i);
 		avgFrac(iter1,iter2) += FracFlow(i);
@@ -400,11 +409,12 @@ int main(){
 	avgFrac(iter1,iter2) = avgFrac(iter1,iter2)/((double)iterations/2);
 	cout<<"avgFlow: "<< endl <<avgFlow<<" avgFrac: "<< endl <<avgFrac<<endl;
 	cout<<"tPressure "<<dPressure<<" tFlow "<<dFlow<<" tUpdate "<<dUpdate<<endl;
-	//cout<<"Ca: "<<endl<<Ca<<endl;
-	/*for( int i = 0; i<nPipes; i++){
-		delete[] pipes[i].bubbleStart;
-		delete[] pipes[i].bubbleStop;
-	}*/
+	double totBubbles = 0;
+	double totSBubbles = 0;
+	for(int j = 0; j<nPipes; j++){
+		totBubbles += pipes[j].nBubbles;
+	}
+	cout<<"Number of bubbles "<<totBubbles<<endl;
 	int K = iterations/10000;
 	for(int j = 0; j<10000; j++){
 		
@@ -417,11 +427,10 @@ int main(){
 	}
 	iter2++;
 	}
-	avgFlow.save("AvgFlowCirc.txt",raw_ascii);
+	avgFlow.save("AvgFlowCutOFF.txt",raw_ascii);
 	Flow.save("Flow.txt",raw_ascii);
-	avgFrac.save("AvgFracCirc.txt",raw_ascii);
+	avgFrac.save("AvgFracCutOFF.txt",raw_ascii);
 	TotFracFlow.save("TotFrac.txt",raw_ascii);
 	Ca.save("CaCirc.txt",raw_ascii);
-	//cout<<"herda? "<<endl;
 return 0;
 }

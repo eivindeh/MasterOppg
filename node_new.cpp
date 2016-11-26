@@ -79,6 +79,8 @@ void node::bubbleAdjust(Pipe* pipes) {
         int ctr = 0;
         bool isSmallW = false;
         bool isSmallNW = false;
+        connectingBubbles = false;
+        int ctr2 = 0;
         for(int i = 0; i < 3; i++){
         	if(i == 0){
         		link = leftPipe->index;
@@ -92,12 +94,14 @@ void node::bubbleAdjust(Pipe* pipes) {
         		//cout<<"skjerdette? "<<endl;
         		continue;
         	}
+
         	int bubble = (pipes[link].nodeN->index == index ? 0 : pipes[link].nBubbles-1);
         	dx1s[i] = (pipes[link].nodeN->index == index ? pipes[link].bubbleStart[bubble] : 1.0 - pipes[link].bubbleStop[bubble]); //switched
         	dx2s[i] = pipes[link].bubbleStop[bubble] - pipes[link].bubbleStart[bubble];
         	
-        	if(dx1s[i] < TOL){
-        		if(dx2s[i] < pipes[link].radius && dx2s[i]> 12e-12){
+        	if(dx1s[i] < 10e-12){
+        		
+        		if(dx2s[i] < pipes[link].radius && dx2s[i]> 10e-12){
         			typeFirst[ctr] = 1;
         			links[ctr] = link;
         			linksId[ctr++] = i;
@@ -112,7 +116,9 @@ void node::bubbleAdjust(Pipe* pipes) {
         		}
         	}
         }
-        
+            if(ctr2>2){
+            	connectingBubbles = true;
+            }
         
             if (isSmallW && isSmallNW) {
             double sumW = 0.0;
@@ -157,7 +163,10 @@ void node::bubbleAdjust(Pipe* pipes) {
                 pipes[links[0]].bubbleStart[bubble] += pipes[links[0]].lenTL;
                 pipes[links[0]].bubbleStop[bubble] += pipes[links[0]].lenTL;
             }
-        } else if (ctr == 1 && isSmallW) {
+        }
+        
+        
+          else if ((ctr == 1 && isSmallW)) {
         	int bubble = 0;// = (pipes[links[0]].nodeP->index == index ? pipes[links[0]].nBubbles - 1 : 0);
         	if (nodeFrac > 1 - TOL &&  pipes[links[0]].nodeN->index == index) {
                 	pipes[links[0]].bubbleStart[bubble] += pipes[links[0]].lenTL;
@@ -171,20 +180,39 @@ void node::bubbleAdjust(Pipe* pipes) {
             	}
             // Add option to move small W bubbles also
             // but maybe not with full linkQ?, due to less surface area?
-            /*
-                For example:
-                    double alpha = 0.5;
-                    double lenTL = linkQ[links[0]]*deltaT/linkVolume[links[0]];
-                    int bubble = (node == linkNodeUp[links[0]] ? linkNumBubbles[links[0]]-1 : 0);
-                    if (nodeFrac[node] > 1.0 - TOL) {
-                        bubbleStart[links[0]][bubble] += alpha*lenTL;
-                        bubbleStop[links[0]][bubble] += alpha*lenTL;
-                    }
-            */
-        } else if (isSmallW xor isSmallNW) {
-            // if two small bubbles, handle?
-            // NOTE: If typeFirst[0] == 1 && typeFirst[1] == 1, move to one side?
+           
         }
+        /*
+        double dx1L[3] = { 1.0, 1.0, 1.0 };
+        double dx2L[3] = { 0.0, 0.0, 0.0 }; // sizes of first NW bubble
+        
+        for(int i = 0; i < 3; i++){
+        	if(i == 0){
+        		link = leftPipe->index;
+        	}else if (i == 1){
+        		link = rightPipe->index;
+        	}
+        	else{
+        		link = horizontalPipe->index;
+        	}
+        	if (pipes[link].nBubbles == 0){
+        		//cout<<"skjerdette? "<<endl;
+        		continue;
+        	}
+
+        	int bubble = (pipes[link].nodeN->index == index ? 0 : pipes[link].nBubbles-1);
+        	dx1L[i] = (pipes[link].nodeN->index == index ? pipes[link].bubbleStart[bubble] : 1.0 - pipes[link].bubbleStop[bubble]); //switched
+        	dx2L[i] = pipes[link].bubbleStop[bubble] - pipes[link].bubbleStart[bubble];
+        	
+        	if(dx1L[i] < 10e-5){
+        		if(dx2L[i]>10e-5)
+        			ctr2++;
+  		}
+        }
+        if(ctr2>2){
+            	connectingBubbles = true;
+        }*/
+        
         
         
         
@@ -208,6 +236,42 @@ void node::bubbleAdjust(Pipe* pipes) {
         
         }*/
         //delete[] links;
+}
+
+void node::findConnectingBubbles(Pipe* pipes){
+	connectingBubbles = true;
+	int link;
+	int ctr2 = 0;
+ 	double dx1L[3] = { 1.0, 1.0, 1.0 };
+        double dx2L[3] = { 0.0, 0.0, 0.0 }; // sizes of first NW bubble
+        
+        for(int i = 0; i < 3; i++){
+        	if(i == 0){
+        		link = leftPipe->index;
+        	}else if (i == 1){
+        		link = rightPipe->index;
+        	}
+        	else{
+        		link = horizontalPipe->index;
+        	}
+        	if (pipes[link].nBubbles == 0){
+        		//cout<<"skjerdette? "<<endl;
+        		continue;
+        	}
+
+        	int bubble = (pipes[link].nodeN->index == index ? 0 : pipes[link].nBubbles-1);
+        	dx1L[i] = (pipes[link].nodeN->index == index ? pipes[link].bubbleStart[bubble] : 1.0 - pipes[link].bubbleStop[bubble]); //switched
+        	dx2L[i] = pipes[link].bubbleStop[bubble] - pipes[link].bubbleStart[bubble];
+        	
+        	if(dx1L[i] < 10e-12){
+        		if(dx2L[i]>10e-1)
+        			ctr2++;
+  		}
+        }
+        if(ctr2>2){
+            	connectingBubbles = true;
+        }
+
 }
 /*void node::fillAandB(mat *A, vec *B){
 	if(index == 0){
